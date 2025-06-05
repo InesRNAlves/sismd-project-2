@@ -7,6 +7,8 @@
   message_interval_ms
 }).
 
+% Github repository: https://github.com/InesRNAlves/sismd-project-2
+
 % Relay-only client (message_interval_ms = 0)
 start(Client, Neighbors) ->
   start(Client, Neighbors, 0).

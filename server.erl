@@ -1,6 +1,8 @@
 -module(server).
 -export([start/0, stop/0, store/2, lookup/1]).
 
+% Github repository: https://github.com/InesRNAlves/sismd-project-2
+
 start() -> register(central, spawn(fun() -> loops(#{}) end)).
 
 stop() ->

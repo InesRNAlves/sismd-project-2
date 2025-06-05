@@ -1,40 +1,113 @@
-1. erl -sname mynode
-2. then start the Erlang shell with: erl
-3. c(server).
-4. server:start().
-4. erlang:get_cookie().
-5. erlang:set_cookie(node(), sismdcookie).    // sismdcookie is the name of the cookie defined by me
-6. client:send_msg(elsa, central, 'server@RemoteMachine', testmessage).
-   client:add_remote('central@UKIMC06VF7N71M').
+# Erlang Distributed Client-Server System
 
-10. erl -sname central -setcookie sismdcookie
-11. erl -sname client1 -setcookie sismdcookie
-12. client:send_msg(client1, central, 'central@UKIMC06VF7N71M', {store, <<"temperature">>, <<"20">>}). <<>> é para transformar em binario 
-13. client:start(client1, central, 'central@UKIMC06VF7N71M', 2000).
-14. client:start(client1, central, 'central@UKIMC06VF7N71M', 120000). // 2minutes
-15. client:stop(client2).
-16. 
-16. client:start(client2, central,[{client1, 'client1@UKIMC06VF7N71M'}, {central, 'central@UKIMC06VF7N71M'}], 3000).
-17. client:start(sensor2, central, [{central, 'central@UKIMC06VF7N71M'}], 3000).
-18. client:stop(client1).
-19. client:start(client2, [{client1, 'client1@UKIMC06VF7N71M'}, {central, 'central@UKIMC06VF7N71M'}], 3000).
-20. server:lookup("temperature").
+## Overview
 
+This project builds a simple distributed system in Erlang with:
 
+This project implements a distributed client-server system in Erlang.
+The `server` module acts as a central node for storing and retrieving key-value pairs,
+while the `client` module represents distributed nodes that communicate with neighbors and relay data to the server.
+The system demonstrates concepts such as process monitoring, message passing, and distributed communication.
 
-1> kvs:store({location,isep},"Porto").
-true
-2> kvs:store(weather,raining).
-true
-3> kvs:lookup(raining).
-undefined
-4> kvs:lookup(weather).
-{ok,raining}
-5> kvs:lookup({location,isep}).
-{ok,"Porto"}
+---
 
+## Features
+- **Central Server**: Stores and retrieves key-value pairs.
+- **Clients**: Relay messages to neighbors and periodically send data to the server.
+- **Distributed Communication**: Nodes communicate across different machines using cookies.
+- **Fault Tolerance**: Monitors processes and handles failures gracefully.
 
-no client:
+---
 
-process_flag(trap_exit, true),
-Pid = spawn_link(fun() -> ... end),
+## Requirements
+
+- Erlang/OTP installed.
+- All nodes must use the same cookie (e.g., `sismdcookie`).
+- Nodes must be able to communicate (use `-sname` and ensure hostname resolution).
+
+---
+
+## How to Run
+
+### 1. Start the Server
+
+Open terminal:
+
+```bash
+erl -sname central -setcookie sismdcookie
+```
+
+In the Erlang shell:
+
+```erlang
+c(server).
+server:start().
+```
+
+---
+
+### 2. Start a Relay Client (No data generation)
+
+In a new terminal:
+
+```bash
+erl -sname client1 -setcookie sismdcookie
+```
+
+In the shell:
+
+```erlang
+c(client).
+client:start(client1, [{client1, 'client2@<YourHost>'}, {central, 'central@<YourHost>'}]).
+```
+
+---
+
+### 3. Start a Sensor Client (Sends data every 3 seconds)
+
+Open another terminal:
+
+```bash
+erl -sname client2 -setcookie sismdcookie
+```
+
+In the shell:
+
+```erlang
+c(client).
+client:start(client2, [{client1, 'client1@<YourHost>'}, {central, 'central@<YourHost>'}], 3000).
+```
+
+> Replace `<YourHost>` with your actual machine hostname.
+
+---
+
+## Lookup Stored Data
+
+In the server shell:
+
+```erlang
+server:lookup("temperature").
+```
+
+---
+
+## Stopping
+
+In the client shells:
+
+```erlang
+client:stop(client1).
+client:stop(client2).
+```
+
+In the server shell:
+
+```erlang
+server:stop().
+```
+
+---
+
+## Notes
+- You can add more clients by repeating the steps above.
