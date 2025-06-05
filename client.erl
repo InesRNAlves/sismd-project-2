@@ -1,37 +1,33 @@
 -module(client).
--export([start/1, add_remote/1, send_msg/4]).
+-export([start/4, stop/1]).
 
 
+start(Client, Server, RemoteMachine, IntervalMs) ->
+  Pid = spawn(fun() -> loop(Client, Server, RemoteMachine, IntervalMs, 0) end),
+  register(Client, Pid).
 
-start(Client) -> register(Client, spawn_link(fun() -> loop() end)).
+stop(Client) ->
+  Client ! stop.
 
-add_remote(RemoteMachine) -> net_adm:ping(RemoteMachine).
-
-send_msg(Client, Server, RemoteMachine, Message)->
-  Client ! {send, Server, RemoteMachine, Message}.
-
-%stop_client(Client) ->
-%  Client ! {stop_client}.
-
-loop() ->
+loop(Client, Server, RemoteMachine, Interval, Index) ->
   receive
-    {send, Server, RemoteMachine, Message} ->
-      {Server, RemoteMachine} ! {self(), Message},
-      receive
-        {_,Reply} -> io:format("Received from server: ~p~n",[Reply])
-      end,
-      loop()
-    %{stop_client} ->
-    %  io:format("Cliente exiting...")
+    stop ->
+      io:format("~p stopping.~n", [Client])
+  after Interval ->
+    Keys = ["humidity", "temperature", "co2_level", "pressure"],
+    Key = lists:nth((Index rem length(Keys)) + 1, Keys),
+    Value = generate_value(Key),
+
+    {Server, RemoteMachine} ! {self(), {store, Key, Value}},
+    receive
+      {_, Reply} ->
+        io:format("Stored ~p: ~p~n", [Key, Value])
+    end,
+
+    loop(Client, Server, RemoteMachine, Interval, Index + 1)
   end.
 
-%(State) ->
-%ceive
-%{'EXIT', SomePid, Reason} -> %% do something with the error
-%  io:format("Received exit signal from process ~p because: ~n",[SomePid, Reason]),
-%  loop(State)
-%
-
-%keep_alive(Name, Fun) ->
-%  register(Name, Pid = spawn(Fun)),
-%  on_exit(Pid, fun() -> keep_alive(Name, Fun) end).
+generate_value("humidity") -> rand:uniform(100);
+generate_value("temperature") -> rand:uniform(35) + 5;
+generate_value("co2_level") -> rand:uniform(800) + 400;
+generate_value("pressure") -> rand:uniform(20) + 980.
