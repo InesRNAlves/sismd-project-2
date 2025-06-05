@@ -1,27 +1,27 @@
 -module(client_2).
--export([start/4, stop/1]).
+-export([start/3, stop/1]).
 
 -record(state, {
-  id,
+  client,
   neighbors,
   interval_ms
 }).
 
-start(Id, _Server, Neighbors, IntervalMs) ->
-  Pid = spawn_link(fun() -> init(Id, Neighbors, IntervalMs) end),
-  register(Id, Pid).
+start(Client, Neighbors, MessageIntervalMs) ->
+  Pid = spawn_link(fun() -> init(Client, Neighbors, MessageIntervalMs) end),
+  register(Client, Pid).
 
-stop(Id) ->
-  Id ! stop.
+stop(Client) ->
+  Client ! stop.
 
-init(Id, Neighbors, Interval) ->
+init(Client, Neighbors, Interval) ->
   process_flag(trap_exit, true),
   rand:seed(exsplus, erlang:timestamp()), % or rand:seed(exsplus, {erlang:monotonic_time(), erlang:unique_integer(), node()}),
-  State = #state{id = Id, neighbors = Neighbors, interval_ms = Interval},
-  io:format("Client ~p started with neighbors: ~p~n", [Id, Neighbors]),
+  State = #state{client = Client, neighbors = Neighbors, interval_ms = Interval},
+  io:format("Client ~p started with neighbors: ~p~n", [Client, Neighbors]),
   loop(State).
 
-loop(State = #state{id = Id, interval_ms = Interval, neighbors = Neighbors}) ->
+loop(State = #state{client = Id, interval_ms = Interval, neighbors = Neighbors}) ->
   receive
     stop ->
       io:format("Client ~p stopping.~n", [Id]);
@@ -36,30 +36,28 @@ loop(State = #state{id = Id, interval_ms = Interval, neighbors = Neighbors}) ->
   end.
 
 try_neighbors([], Key, _Value, State) ->
-  io:format("Client ~p: No available neighbors for key ~p~n", [State#state.id, Key]);
+  io:format("Client ~p: No available neighbors for key ~p~n", [State#state.client, Key]);
+try_neighbors([{Client, Node} | Rest], Key, Value, State) ->
+  try_send(Client, Node, Key, Value, Rest, State).
 
-try_neighbors([{Name, Node} | Rest], Key, Value, State) ->
-  maybe_send(Name, Node, Key, Value, Rest, State).
+try_send(Client, Node, Key, Value, Rest, State) ->
+  Pid = rpc:call(Node, erlang, whereis, [Client]),
+  try_monitor(Pid, Client, Node, Key, Value, Rest, State).
 
-maybe_send(Name, Node, Key, Value, Rest, State) ->
-  Pid = rpc:call(Node, erlang, whereis, [Name]),
-  maybe_monitor(Pid, Name, Node, Key, Value, Rest, State).
-
-maybe_monitor(undefined, Name, Node, Key, Value, Rest, State) ->
-  io:format("Client ~p: ~p@~p unreachable, trying next~n", [State#state.id, Name, Node]),
+try_monitor(undefined, Client, Node, Key, Value, Rest, State) ->
+  io:format("Client ~p: ~p@~p unreachable, trying next~n", [State#state.client, Client, Node]),
   try_neighbors(Rest, Key, Value, State);
-
-maybe_monitor(Pid, Name, Node, Key, Value, Rest, State) ->
+try_monitor(Pid, Name, Node, Key, Value, Rest, State) ->
   Ref = monitor(process, Pid),
   Pid ! {self(), {store, Key, Value}},
   receive
     {_, Reply} ->
       demonitor(Ref, [flush]),
       io:format("Client ~p: Sent ~p = ~p to ~p@~p, reply: ~p~n",
-        [State#state.id, Key, Value, Name, Node, Reply])
+        [State#state.client, Key, Value, Name, Node, Reply])
   after 1000 ->
     demonitor(Ref, [flush]),
-    io:format("Client ~p: ~p@~p timeout, trying next~n", [State#state.id, Name, Node]),
+    io:format("Client ~p: ~p@~p timeout, trying next~n", [State#state.client, Name, Node]),
     try_neighbors(Rest, Key, Value, State)
   end.
 
