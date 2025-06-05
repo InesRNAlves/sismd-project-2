@@ -12,6 +12,7 @@
 12. client:send_msg(client1, central, 'central@UKIMC06VF7N71M', {store, <<"temperature">>, <<"20">>}). <<>> é para transformar em binario 
 13. client:start(client1, central, 'central@UKIMC06VF7N71M', 2000).
 14. client:start(client1, central, 'central@UKIMC06VF7N71M', 120000). // 2minutes
+15. client:stop(client2).
 
 
 
