@@ -21,7 +21,7 @@ loop(Client, Server, RemoteMachine, Interval, Index) ->
     {Server, RemoteMachine} ! {self(), {store, Key, Value}},
     receive
       {_, Reply} ->
-        io:format("Stored ~p: ~p~n", [Key, Value])
+        io:format("Stored ~p: ~p (reply: ~p)~n", [Key, Value, Reply])
     end,
 
     loop(Client, Server, RemoteMachine, Interval, Index + 1)
