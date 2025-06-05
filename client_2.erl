@@ -2,33 +2,43 @@
 -export([start/3, stop/1]).
 
 -record(state, {
-  client,
-  neighbors,
-  interval_ms
+  client, % E.g.: client1
+  neighbors, % E.g.: [{client1, client1@UKIMC06VF7N71M}, {central, central@UKIMC06VF7N71M}]
+  message_interval_ms
 }).
 
+% Starts a new process with name 'Client'
 start(Client, Neighbors, MessageIntervalMs) ->
   Pid = spawn_link(fun() -> init(Client, Neighbors, MessageIntervalMs) end),
   register(Client, Pid).
 
+% Sends a stop message to the 'Client' process to shut it down
 stop(Client) ->
-  Client ! stop.
+  Client ! stop_process.
 
-init(Client, Neighbors, Interval) ->
+% I Want to Handle Errors If a Process I Create Crashes --> process_flag(trap_exit, true).
+% When trap_exit is set to true, exit signals arriving to a process are
+% converted to {'EXIT', From, Reason} messages, which can be received as ordinary messages
+init(Client, Neighbors, MessageIntervalMs) ->
   process_flag(trap_exit, true),
   rand:seed(exsplus, erlang:timestamp()), % or rand:seed(exsplus, {erlang:monotonic_time(), erlang:unique_integer(), node()}),
-  State = #state{client = Client, neighbors = Neighbors, interval_ms = Interval},
+  State = #state{client = Client, neighbors = Neighbors, message_interval_ms = MessageIntervalMs},
   io:format("Client ~p started with neighbors: ~p~n", [Client, Neighbors]),
   loop(State).
 
-loop(State = #state{client = Id, interval_ms = Interval, neighbors = Neighbors}) ->
+loop(State = #state{client = Client, message_interval_ms = MessageIntervalMs, neighbors = Neighbors}) ->
   receive
-    stop ->
-      io:format("Client ~p stopping.~n", [Id]);
+    stop_process ->
+      io:format("Client ~p stopping.~n", [Client]); % Receives message to stop the process --> clean shutdown
     {'DOWN', _Ref, process, _Pid, _Reason} ->
       [_Failed | Remaining] = Neighbors,
-      loop(State#state{neighbors = Remaining})
-  after Interval ->
+      io:format("Client ~p: Neighbor down, remaining neighbors: ~p~n", [Client, Remaining]),
+      loop(State#state{neighbors = Remaining});
+    {'EXIT', Pid, Reason} ->
+      Freq = find_pid(Pid,Frequencies),
+      NewFrequencies = deallocate(Frequencies, Freq),
+loop(NewFrequencies)
+  after MessageIntervalMs ->
     Key = random_key(),
     Value = generate_value(Key),
     try_neighbors(Neighbors, Key, Value, State),
