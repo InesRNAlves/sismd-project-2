@@ -16,6 +16,11 @@ rpc(Q) ->
 
 loops(Store) ->
   receive
+
+    stop_server ->
+      io:format("CENTRAL SERVER: Shutting down~n"),
+      ok;
+
     {From, {store, Key, Value}} ->
       % Append the value to the list for that key
       UpdatedStore = maps:update_with(Key,
@@ -27,7 +32,7 @@ loops(Store) ->
       loops(UpdatedStore);
 
     {From, {lookup, Key}} ->
-      Value = Value = lists:reverse(maps:get(Key, Store, [])), % orders the values by order of insertion
+      Value = Value = lists:reverse(maps:get(Key, Store, [])), % orders the values by the order in which they were received
       From ! {central, Value},
       io:format("CENTRAL LOOKUP: ~p requested ~p -> ~p~n", [node(From), Key, Value]),
       loops(Store)
