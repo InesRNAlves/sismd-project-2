@@ -14,9 +14,11 @@
 14. client:start(client1, central, 'central@UKIMC06VF7N71M', 120000). // 2minutes
 15. client:stop(client2).
 16. 
-16. client_2:start(client2, central,[{client1, 'client1@UKIMC06VF7N71M'}, {central, 'central@UKIMC06VF7N71M'}], 3000).
-17. client_2:start(sensor2, central, [{central, 'central@UKIMC06VF7N71M'}], 3000).
-18. client_2:stop(client1).
+16. client:start(client2, central,[{client1, 'client1@UKIMC06VF7N71M'}, {central, 'central@UKIMC06VF7N71M'}], 3000).
+17. client:start(sensor2, central, [{central, 'central@UKIMC06VF7N71M'}], 3000).
+18. client:stop(client1).
+19. client:start(client2, [{client1, 'client1@UKIMC06VF7N71M'}, {central, 'central@UKIMC06VF7N71M'}], 3000).
+20. server:lookup("temperature").
 
 
 

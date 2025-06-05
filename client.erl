@@ -1,11 +1,15 @@
 -module(client).
--export([start/3, stop/1]).
+-export([start/2, start/3, stop/1]).
 
 -record(state, {
   client, % E.g.: client1
   neighbors, % E.g.: [{client1, client1@UKIMC06VF7N71M}, {central, central@UKIMC06VF7N71M}]
   message_interval_ms
 }).
+
+% Relay-only client (message_interval_ms = 0)
+start(Client, Neighbors) ->
+  start(Client, Neighbors, 0).
 
 % Starts a new process with name 'Client'
 start(Client, Neighbors, MessageIntervalMs) ->
@@ -21,6 +25,25 @@ init(Client, Neighbors, MessageIntervalMs) ->
   io:format("Client ~p started with neighbors: ~p~n", [Client, Neighbors]),
   loop(State).
 
+% Loop for Relay-Only Clients (Interval = 0)
+loop(State = #state{message_interval_ms = 0}) ->
+  receive
+    stop_process ->
+      io:format("Client ~p stopping (relay).~n", [State#state.client]);
+    {'DOWN', _Ref, process, _Pid, _Reason} ->
+      [_Failed | Remaining] = State#state.neighbors,
+      io:format("Client ~p: Neighbor down, remaining neighbors: ~p~n", [State#state.client, Remaining]),
+      loop(State#state{neighbors = Remaining});
+    {From, {store, Key, Value}} ->
+      % Relay the data to a valid neighbor (e.g. central server)
+      try_neighbors(State#state.neighbors, Key, Value, State),
+      From ! {self(), message_relayed},
+      io:format("Client ~p (relay): forwarded ~p = ~p to server~n", [State#state.client, Key, Value]),
+      loop(State)
+  after 1000 ->
+    loop(State)
+  end;
+
 loop(State = #state{client = Client, message_interval_ms = MessageIntervalMs, neighbors = Neighbors}) ->
   receive
     stop_process ->
@@ -28,12 +51,7 @@ loop(State = #state{client = Client, message_interval_ms = MessageIntervalMs, ne
     {'DOWN', _Ref, process, _Pid, _Reason} ->
       [_Failed | Remaining] = Neighbors,
       io:format("Client ~p: Neighbor down, remaining neighbors: ~p~n", [Client, Remaining]),
-      loop(State#state{neighbors = Remaining});
-    {From, {store, Key, Value}} ->
-      Reply = server:store(Key, Value),
-      From ! {self(), Reply},
-      io:format("Client ~p (relay): forwarded ~p = ~p to server~n", [Client, Key, Value]),
-      loop(State)
+      loop(State#state{neighbors = Remaining})
 
   % After the defined interval, it: Picks a key like "temperature"
   % Generates a value (e.g., 27)
@@ -47,15 +65,11 @@ loop(State = #state{client = Client, message_interval_ms = MessageIntervalMs, ne
   end.
 
 % Tries to send to the first available neighbor
-% If it fails, it will call itself recursively with the remaining neighbors
-% If no neighbors are available, it logs a message
 try_neighbors([], Key, Value, State) ->
   io:format("Client '~p': No available neighbors to send ~p = ~p~n", [State#state.client, Key, Value]);
 try_neighbors([{Client, Node} | Rest], Key, Value, State) ->
   try_send(Client, Node, Key, Value, Rest, State).
 
-% Gets the PID of the remote process on Node with name Client
-% If the PID is not found, Pid = undefined in the try_monitor/7 function
 try_send(Client, Node, Key, Value, Rest, State) ->
   Pid = rpc:call(Node, erlang, whereis, [Client]),
   try_monitor(Pid, Client, Node, Key, Value, Rest, State).
@@ -69,8 +83,6 @@ try_monitor(undefined, Client, Node, Key, Value, Rest, State) ->
 try_monitor(Pid, Name, Node, Key, Value, Rest, State) ->
   % Monitor the process to catch crashes
   Ref = monitor(process, Pid),
-  % Send the message to the remote process (PID) with reference to self,
-  % so that the receiving process can reply
   Pid ! {self(), {store, Key, Value}},
   receive
     % Remove the monitor reference and flush any 'DOWN' messages from the mailbox,
