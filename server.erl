@@ -27,7 +27,7 @@ loops(Store) ->
       loops(UpdatedStore);
 
     {From, {lookup, Key}} ->
-      Value = maps:get(Key, Store, []),
+      Value = Value = lists:reverse(maps:get(Key, Store, [])), % orders the values by order of insertion
       From ! {central, Value},
       io:format("CENTRAL LOOKUP: ~p requested ~p -> ~p~n", [node(From), Key, Value]),
       loops(Store)
