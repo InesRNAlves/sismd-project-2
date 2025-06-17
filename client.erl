@@ -53,8 +53,13 @@ loop(State = #state{client = Client, message_interval_ms = MessageIntervalMs, ne
     {'DOWN', _Ref, process, _Pid, _Reason} ->
       [_Failed | Remaining] = Neighbors,
       io:format("Client ~p: Neighbor down, remaining neighbors: ~p~n", [Client, Remaining]),
-      loop(State#state{neighbors = Remaining})
-
+      loop(State#state{neighbors = Remaining});
+    {From, {store, Key, Value}} ->
+      % Relay the data to a valid neighbor (e.g. central server)
+      try_neighbors(State#state.neighbors, Key, Value, State),
+      From ! {self(), message_relayed},
+      io:format("Client ~p (relay): forwarded ~p = ~p to server~n", [State#state.client, Key, Value]),
+      loop(State)
   % After the defined interval, it: Picks a key like "temperature"
   % Generates a value (e.g., 27)
   % Tries to send to a neighbor

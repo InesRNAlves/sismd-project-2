@@ -58,7 +58,7 @@ In the shell:
 
 ```erlang
 c(client).
-client:start(client1, [{client1, 'client2@<YourHost>'}, {central, 'central@<YourHost>'}]).
+client:start(client1, [{client2, 'client2@<YourHost>'}, {central, 'central@<YourHost>'}]).
 ```
 
 ---
